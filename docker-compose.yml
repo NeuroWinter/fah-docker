@@ -1,31 +1,68 @@
+# Self-contained Tor exit relay — one compose file, no custom image build.
+#
+# A stock Debian image installs tor at first start and runs the inlined torrc
+# below. Config values come from the environment / a .env file next to this
+# file; TOR_CONTACT is mandatory (compose refuses to start without it).
+#
+#   TOR_CONTACT="tor-admin <abuse@example.org>" docker compose up -d
+#   docker compose logs -f            # watch for "Bootstrapped 100% (done)"
+#
+# READ THE RISKS: exit traffic leaves YOUR IP. Run only on a dedicated public
+# IP with a provider that permits Tor exits — never home or employer networks.
+
+configs:
+  torrc:
+    content: |
+      # --- generated from docker-compose.yml ---
+      Nickname ${TOR_NICKNAME:-torexit}
+      ContactInfo ${TOR_CONTACT:?set TOR_CONTACT, e.g. "tor-admin <abuse@example.org>"}
+      ORPort ${TOR_ORPORT:-9001}
+      SocksPort 0
+      DataDirectory /var/lib/tor
+      User debian-tor
+      Log notice stdout
+      SafeLogging 1
+      AvoidDiskWrites 1
+
+      # Exit relay with the Tor Project "reduced" exit policy (lower abuse than
+      # the default). To run a NON-exit (middle) relay instead, set ExitRelay 0
+      # and replace the accept lines below with a single: ExitPolicy reject *:*
+      ExitRelay 1
+      IPv6Exit ${TOR_IPV6_EXIT:-0}
+      ExitPolicy accept *:20-21, accept *:22, accept *:23, accept *:43, accept *:53, accept *:79-81, accept *:88, accept *:110, accept *:143, accept *:194, accept *:220, accept *:389, accept *:443
+      ExitPolicy accept *:464, accept *:465, accept *:531, accept *:543-544, accept *:554, accept *:563, accept *:587, accept *:636, accept *:706, accept *:749, accept *:873, accept *:902-904, accept *:981, accept *:989-995
+      ExitPolicy accept *:1194, accept *:1220, accept *:1293, accept *:1500, accept *:1533, accept *:1677, accept *:1723, accept *:1755, accept *:1863, accept *:2082-2083, accept *:2086-2087, accept *:2095-2096, accept *:2102-2104
+      ExitPolicy accept *:3128, accept *:3389, accept *:3690, accept *:4321, accept *:4643, accept *:5050, accept *:5190, accept *:5222-5223, accept *:5228, accept *:5900, accept *:6660-6669, accept *:6679, accept *:6697
+      ExitPolicy accept *:8000, accept *:8008, accept *:8074, accept *:8080, accept *:8082, accept *:8087-8088, accept *:8232-8233, accept *:8332-8333, accept *:8443, accept *:8888, accept *:9418, accept *:9999, accept *:11371, accept *:19294, accept *:19638, accept *:50002, accept *:64738
+      ExitPolicy reject *:*
+
 services:
-  foldingathome:
-    build:
-      context: .
-      args:
-        FAH_VERSION: "8.5.6"
-    image: foldingathome:8.5.6
-    container_name: foldingathome
+  tor-exit:
+    image: debian:bookworm-slim
+    container_name: tor-exit
     restart: unless-stopped
-    # Publish the Web Control / API to the host loopback only. The control API
-    # is UNAUTHENTICATED, so never expose it on 0.0.0.0.
+    # Publish the ORPort on your dedicated public IP (edit the left side to a
+    # specific IP on multi-homed hosts, e.g. "203.0.113.10:9001:9001").
     ports:
-      - "127.0.0.1:7396:7396"
-    environment:
-      FAH_USER: "Anonymous"
-      FAH_TEAM: "0"
-      # FAH_PASSKEY: ""            # 32-hex passkey for bonus points
-      # FAH_ACCOUNT_TOKEN: ""      # link this machine to an account
-      # FAH_MACHINE_NAME: "docker-folder"
-      # FAH_CPUS: "4"              # default: all CPUs visible to the container
-    # Persist WU progress, downloaded cores and config across restarts.
+      - "${TOR_ORPORT:-9001}:${TOR_ORPORT:-9001}"
+    configs:
+      - source: torrc
+        target: /etc/tor/torrc-exit
     volumes:
-      - fah-data:/fah
-    # Be a good neighbour: cap CPU if you like, e.g.
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: "4"
+      - tor-data:/var/lib/tor
+    command:
+      - sh
+      - -euc
+      - |
+        export DEBIAN_FRONTEND=noninteractive
+        if ! command -v tor >/dev/null 2>&1; then
+          apt-get update
+          apt-get install -y --no-install-recommends tor tor-geoipdb ca-certificates
+          rm -rf /var/lib/apt/lists/*
+        fi
+        install -d -o debian-tor -g debian-tor -m 0700 /var/lib/tor
+        tor -f /etc/tor/torrc-exit --verify-config
+        exec tor -f /etc/tor/torrc-exit
 
 volumes:
-  fah-data:
+  tor-data:

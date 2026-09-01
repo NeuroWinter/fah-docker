@@ -1,83 +1,86 @@
-# Folding@home in a container
+# Tor exit relay in a container
 
-Headless [Folding@home](https://foldingathome.org/) **v8** client, packaged as a
-container image. Works with Docker or Podman.
+A headless [Tor](https://www.torproject.org/) **exit relay**, packaged as a
+container image (Docker or Podman). Config is generated from environment
+variables; Tor runs in the foreground and drops privileges to `debian-tor`.
 
-The upstream project ships no container image, so this installs the official
-x86_64 client RPM (version pinned via a build arg) on a `fedora:44` base. The v8
-client boots **paused**; the entrypoint enables folding over the client's local
-websocket control API (`fahctl fold`) once it is up.
+## ⚠️ Read this before running an exit
 
-## Build
+Running an exit relay is legal and valuable in many places, but it is **not**
+zero-risk. Traffic to the wider internet leaves *your* IP address, so:
 
-```sh
-docker build -t foldingathome:8.5.6 .
-# or
-podman build -t foldingathome:8.5.6 .
-```
+- You **will** get abuse complaints; you may get DMCA notices or law-enforcement
+  contact. A monitored `ContactInfo` address is **mandatory** (this image
+  refuses to start without one).
+- Run it **only** on a **dedicated public IP** with a provider that **explicitly
+  allows Tor exits**. Do **not** run it on a home connection, and **never on an
+  employer's / corporate network** — you would route third parties' abuse
+  through infrastructure you don't own.
+- Set reverse DNS and, ideally, publish a DNS/HTTP notice that the IP is a Tor
+  exit (see the Tor Project's *"Tips for running an exit relay"*).
+- Consider a **dedicated ASN/IP** and register abuse contacts with your RIR.
+
+This image runs a **plain relay**: it never logs, inspects, or modifies the
+traffic passing through it (`SafeLogging 1`). Operating a malicious exit that
+sniffs or tampers with user traffic is illegal and violates Tor's rules — don't.
 
 ## Run
 
-```sh
-docker run -d --name foldingathome \
-  -p 127.0.0.1:7396:7396 \
-  -v fah-data:/fah \
-  -e FAH_USER="YourName" \
-  -e FAH_TEAM="0" \
-  foldingathome:8.5.6
-```
-
-Or with compose: `docker compose up -d --build`.
-
-Watch it fold:
+Everything lives in `docker-compose.yml` — a stock Debian image installs `tor`
+on first start and runs the inlined torrc. No image build, no extra files.
 
 ```sh
-docker logs -f foldingathome
+export TOR_CONTACT="tor-admin <abuse@example.org>"   # or put it in a .env file
+docker compose up -d
+docker compose logs -f      # watch for "Bootstrapped 100% (done)"
 ```
 
-You will see a WU assignment, the GROMACS core download, then
-`Project: NNNNN ... Completed N out of M steps`.
+Podman works identically: `podman compose up -d`.
 
-## Configuration (environment variables)
+`TOR_CONTACT` is **mandatory** — compose refuses to start without it.
 
-| Variable            | Default        | Purpose |
-|---------------------|----------------|---------|
-| `FAH_USER`          | `Anonymous`    | Contributor name shown on stats. |
-| `FAH_TEAM`          | `0`            | Team number. |
-| `FAH_PASSKEY`       | *(empty)*      | 32-hex passkey for bonus points. |
-| `FAH_ACCOUNT_TOKEN` | *(empty)*      | Link the machine to a F@h account. |
-| `FAH_MACHINE_NAME`  | *(empty)*      | Name for this machine in the account. |
-| `FAH_CPUS`          | *(all visible)*| CPU threads to fold with. |
-| `FAH_CAUSE`         | `any`          | Preferred research cause. |
-| `FAH_HTTP`          | `0.0.0.0:7396` | Control/Web API bind address inside the container. |
-| `FAH_ALLOW`         | `0/0`          | Client addresses allowed to reach the control API. |
-| `FAH_EXTRA_ARGS`    | *(empty)*      | Extra raw `fah-client` flags. |
+> The standalone `Dockerfile` + `entrypoint.sh` in this directory are an
+> alternative pre-built-image approach and are **not** used by the compose
+> file; you can delete them if you only want the compose workflow.
 
-Limit CPU usage either with `FAH_CPUS` or the container runtime
-(`docker run --cpus=4 ...`); the client auto-detects the cores visible to the
-container.
+## Configuration (environment / `.env`)
 
-## Web Control
+Interpolated into the torrc by compose at `up` time:
 
-The bundled Web Control API listens on port 7396. With the port published to
-`127.0.0.1`, open <https://app.foldingathome.org/> and connect it to
-`http://localhost:7396` to inspect progress and change settings.
+| Variable        | Default   | Purpose |
+|-----------------|-----------|---------|
+| `TOR_CONTACT`   | *(none)*  | **Required.** Abuse/ops contact published in the consensus. |
+| `TOR_NICKNAME`  | `torexit` | Relay nickname (1–19 alphanumerics). |
+| `TOR_ORPORT`    | `9001`    | Public relay port; published *and* port-mapped. |
+| `TOR_IPV6_EXIT` | `0`       | Allow IPv6 exit traffic. |
 
-> **Security:** the control API is unauthenticated. Only publish it to
-> `127.0.0.1` (as shown), never to a public interface.
+Bandwidth caps, accounting, and exit-policy changes are edited directly in the
+torrc block of `docker-compose.yml`:
+
+- **Non-exit (middle) relay** — all the network benefit, essentially none of the
+  abuse/legal exposure (a good first step if unsure): set `ExitRelay 0` and
+  replace the `ExitPolicy accept …` lines with a single `ExitPolicy reject *:*`.
+- **Throttle** — add `RelayBandwidthRate 10 MBytes` / `RelayBandwidthBurst
+  20 MBytes`, or `AccountingMax 3 TBytes`.
+
+## Reachability & becoming published
+
+After `Bootstrapped 100%`, Tor performs a **reachability self-test** on your
+ORPort. Your ORPort must be reachable **from the public internet** (correct
+port-publish, host firewall, and provider security groups all open). Only then
+does the relay get published in the consensus; exit flags and meaningful traffic
+follow over the next hours-to-days as the relay earns trust.
+
+Verify from outside once running:
+
+```sh
+# from another host
+nc -vz <your-public-ip> 9001
+```
 
 ## Data persistence
 
-WU progress, downloaded cores, config and logs live in `/fah`. Mount a volume
-there (as the examples do) so an in-progress work unit survives restarts.
-
-> **Podman note:** progress is streamed to the container's stdout, so
-> `docker logs -f` / `podman logs -f` shows live folding output. If your Podman
-> defaults to the `journald` log driver and `podman logs` looks empty, run with
-> `--log-driver k8s-file` (or read `/fah/log.txt` in the volume directly).
-
-## GPU folding
-
-This image folds on CPU. GPU folding needs the host GPU passed into the
-container (`--device`/NVIDIA runtime) plus the matching drivers, and is out of
-scope here.
+The relay identity keys and state live in `/var/lib/tor`. Keep the volume: a new
+identity key restarts the relay's reputation from zero. For **bind mounts**,
+`chown` the host dir to uid `debian-tor` (`chown -R 101:101 ./tor-data`, verify
+the uid with `docker run --rm tor-exit id debian-tor`).
