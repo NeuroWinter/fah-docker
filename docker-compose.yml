@@ -1,0 +1,31 @@
+services:
+  foldingathome:
+    build:
+      context: .
+      args:
+        FAH_VERSION: "8.5.6"
+    image: foldingathome:8.5.6
+    container_name: foldingathome
+    restart: unless-stopped
+    # Publish the Web Control / API to the host loopback only. The control API
+    # is UNAUTHENTICATED, so never expose it on 0.0.0.0.
+    ports:
+      - "127.0.0.1:7396:7396"
+    environment:
+      FAH_USER: "Anonymous"
+      FAH_TEAM: "0"
+      # FAH_PASSKEY: ""            # 32-hex passkey for bonus points
+      # FAH_ACCOUNT_TOKEN: ""      # link this machine to an account
+      # FAH_MACHINE_NAME: "docker-folder"
+      # FAH_CPUS: "4"              # default: all CPUs visible to the container
+    # Persist WU progress, downloaded cores and config across restarts.
+    volumes:
+      - fah-data:/fah
+    # Be a good neighbour: cap CPU if you like, e.g.
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: "4"
+
+volumes:
+  fah-data:
