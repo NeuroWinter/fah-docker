@@ -4,18 +4,30 @@
 #
 # https://community.torproject.org/relay/setup/exit/
 
-set -euo pipefail
+set -Eeuo pipefail
 
-if [ "$EUID" -ne 0 ]; then
-  echo "Error: This script must run as root." >&2
-  exit 1
-fi
+# --- logging helpers ---------------------------------------------------------
+log() { printf '%(%Y-%m-%dT%H:%M:%S%z)T [run] %s\n' -1 "$*"; }
+die() { printf '%(%Y-%m-%dT%H:%M:%S%z)T [run] ERROR: %s\n' -1 "$*" >&2; exit 1; }
+trap 'die "failed at line ${LINENO} (exit $?)"' ERR
 
-echo "[*] Installing Tor from Fedora repositories..."
+# `docker run -e DEBUG=1 ...` turns on full command tracing.
+[ "${DEBUG:-0}" = "1" ] && set -x
+
+TORRC=/etc/tor/torrc
+
+log "Starting setup on $(uname -srm)"
+
+[ "$EUID" -eq 0 ] || die "This script must run as root."
+log "Running as root (uid=${EUID}) — OK"
+
+log "Installing Tor from Fedora repositories..."
 dnf install -y tor
+log "Installed version:"
+tor --version | sed 's/^/    /'
 
-echo "[*] Writing EXIT relay configuration (reduced policy)..."
-cat > /etc/tor/torrc <<'EOF'
+log "Writing EXIT relay configuration to ${TORRC} (reduced policy)..."
+cat > "$TORRC" <<'EOF'
 # Tor EXIT relay configuration
 Nickname YourRelayNickname
 ContactInfo your-email@example.org
@@ -34,13 +46,22 @@ ExitPolicy reject *:*
 
 SocksPort 0
 
-# Stream logs to stdout so `docker logs` shows them
+# Stream logs to stdout so `docker logs` shows them.
+# Bump to `Log info stdout` (or debug) for much more detail.
 Log notice stdout
 EOF
+log "Config written (${TORRC}, $(wc -l < "$TORRC") lines)"
 
-echo "[*] Config written. Starting Tor in the foreground..."
-echo "    Edit Nickname/ContactInfo in /etc/tor/torrc before real use."
+log "Validating configuration..."
+tor --verify-config -f "$TORRC"
+log "Configuration is valid."
+
+log "Effective relay settings:"
+grep -E '^(Nickname|ContactInfo|ORPort|ExitRelay|IPv6Exit|SocksPort|Log)\b' "$TORRC" | sed 's/^/    /' || true
+
+log "Starting Tor in the foreground — watch for 'Bootstrapped 100% (done)' below."
+log "(Ctrl-C to stop.)"
 
 # exec => tor becomes PID 1, receives signals, and its logs go to docker logs
-exec tor -f /etc/tor/torrc
+exec tor -f "$TORRC"
 
